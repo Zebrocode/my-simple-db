@@ -13,6 +13,9 @@ import java.util.List;
  * pages of binary data in the appropriate format for simpledb heap pages
  * Pages are padded out to a specified length, and written consecutive in a
  * data file.
+ *
+ * 这个类其实就是从文件读元数据类似于   1,2,3,4,5 这种格式
+ * 把它转化成 page结构: header + slots  而且没有考虑中间的slot为空的情况,仅仅是在文件末尾补0
  */
 
 public class HeapFileEncoder {
@@ -125,7 +128,8 @@ public class HeapFileEncoder {
     boolean done = false;
     boolean first = true;
     while (!done) {
-        int c = br.read();
+        //直接开始读数据,输入文件中没有header信息,输出文件中需要自己添加header信息
+        int c = br.read();//读取单个char
         
         // Ignore Windows/Notepad special line endings
         if (c == '\r')
@@ -181,6 +185,11 @@ public class HeapFileEncoder {
         // when we're done, also flush the page to disk, but only if it has
         // records on it.  however, if this file is empty, do flush an empty
         // page to disk.
+        //读完了所有的数据或者已经读了一整页page时,才能进入下面的写入过程,因为这样才能知道header的全部信息,哪个slot有数据哪个slot没有,有用1表示,没有0表示
+        //写入的时候有三种情况:
+        //    1.读了一整页的数据
+        //    2.没读到一整页就到文件结尾了
+        //    3.空文件,但是读到了文件结尾
         if (recordcount >= nrecords
             || done && recordcount > 0
             || done && npages == 0) {
@@ -189,7 +198,7 @@ public class HeapFileEncoder {
             
             for (i=0; i<nheaderbits; i++) {
                 if (i < recordcount)
-                    headerbyte |= (1 << (i % 8));
+                    headerbyte |= (1 << (i % 8));// 看样子这个文件读取没有考虑到文件中间出现空的slot的情况,所以这里直接把对应bit置1
                 
                 if (((i+1) % 8) == 0) {
                     headerStream.writeByte(headerbyte);
